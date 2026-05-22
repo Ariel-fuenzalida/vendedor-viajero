@@ -1,3 +1,11 @@
+/*
+-Ariel Fuenzalida
+-Henry Huerta
+-Diego Binimelis
+
+-INF2322-2
+*/
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -76,9 +84,12 @@ void lee_grafo()
 void imprime_grafo()
 {
    int i, j;
+   // recorre todos los nodos del grafo
    for (i=0;i<30;i++)
    {
       printf("\n nodo %d -> ",i+1);	   
+
+	  // imprime todas las conexiones del nodo actual hasta llegar a -1
       for (j=0;grafo[i][j] != -1;j++)
 	  printf(" - %d",grafo[i][j]);    
 

@@ -17,6 +17,7 @@ int rutasEncontradasParaSolucion = 0; // contador para rutas que se han encontra
 int grafo [30][30];
 int nodosarecorrer[5];
 int nodoinicial;
+int mejorCantidadPasos = 30;
 sem_t semaforo; // semaforo para controlar el acceso a la ruta optima
 sem_t mutex; // para controlar el acceso a las rutas 
 
@@ -109,6 +110,78 @@ void objetivoMarca(int numNodo, ruta *rutaVisitada){ //para marcar un nodo visit
 }
 
 
+
+
+int validarCamino (ruta *lista, int nodoLlegar){ // validar que el nodo se conecte con el siguiente 
+    int fila = lista->nodoA - 1;
+    int i = 0;
+
+    for ( i=0; grafo[fila][i] != -1; i++){
+        if (grafo[fila][i] == nodoLlegar){
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int validadorObjetivosCompletados(ruta *lista){ // validar que el nodo a llegar sea un nodo objetivo
+    int i = 0;
+    for (i = 0; i < 5; i++){
+        if (0 == lista->visitado[i]){
+            return 0; // si uno es 0, es que aun quedan objetivos que visitar
+            break;
+        }
+    }
+    return 1; // si se retorna 1 es porque ya se tienen todos los objetivos completos
+} // se usa para terminar el recorrido de una si ya se tienen los 5 numeros
+
+
+int yaExisteRutaConPasos(int pasos)
+{
+    int i;
+
+    for (i = 0; i < rutasEncontradasParaSolucion; i++) {
+        if (rutasEncontradas[i].cantidadPasosR == pasos) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+void imprimirRuta(ruta *r)
+{
+    int i;
+
+    for (i = 0; i <= r->cantidadPasosR; i++)
+    {
+        if (i > 0)
+        {
+            printf(" -> ");
+        }
+
+        printf("%d", r->rutasNodo[i]);
+    }
+
+    printf(" | pasos: %d\n", r->cantidadPasosR);
+}
+
+
+
+void imprimirTodasLasRutas()
+{
+    int i;
+
+    printf("\n----- RUTAS ENCONTRADAS -----\n");
+
+    for (i = 0; i < rutasEncontradasParaSolucion; i++)
+    {
+        printf("\nRuta %d: ", i + 1);
+
+        imprimirRuta(&rutasEncontradas[i]);
+    }
+}
+
 void imprimirMejorRuta()
 {
     int i;
@@ -126,51 +199,6 @@ void imprimirMejorRuta()
 }
 
 
-int validadorObjetivosCompletados(ruta *lista){ // validar que el nodo a llegar sea un nodo objetivo
-    int i = 0;
-    for (i = 0; i < 5; i++){
-        if (0 == lista->visitado[i]){
-            return 0; // si uno es 0, es que aun quedan objetivos que visitar
-            break;
-        }
-    }
-    return 1; // si se retorna 1 es porque ya se tienen todos los objetivos completos
-} // se usa para terminar el recorrido de una si ya se tienen los 5 numeros
-
-void imprimirRuta(ruta *r)
-{
-    int i;
-
-    for (i = 0; i <= r->cantidadPasosR; i++) // imprime todos los nodos guardados en la ruta
-    {
-        if (i > 0)
-        {
-            printf(" -> ");
-        }
-
-        printf("%d", r->rutasNodo[i]);
-    }
-
-    printf(" | pasos: %d\n", r->cantidadPasosR); // imprime cuantos pasos tiene la ruta
-}
-
-
-
-void imprimirTodasLasRutas()
-{
-    int i;
-
-    printf("\n----- TODAS LAS RUTAS ENCONTRADAS -----\n");
-
-    for (i = 0; i < rutasEncontradasParaSolucion; i++) // solo recorre rutas que fueron encontradas
-    {
-        printf("\nRuta %d: ", i + 1);
-
-        imprimirRuta(&rutasEncontradas[i]);
-    }
-}
-
-
 
 
 //---------------------------------------------------------------
@@ -184,74 +212,76 @@ void imprimirTodasLasRutas()
 
 void *recorridoGrafo(void *arreglo)
 {
-    ruta *rutaActual = (ruta *)arreglo; // se castea el void* para usarlo como ruta
+    ruta *rutaActual = (ruta *)arreglo;
     int i = 0;
     int k;
     int repetido;
 
 
-    if (rutasEncontradasParaSolucion >= 100) { // si se encuentran 100 rutas, no busca mas
-        sem_post(&semaforo); // libera permiso antes de terminar el hilo
+
+    rutaActual->rutasNodo[rutaActual->cantidadPasosR] = rutaActual->nodoA;
+    objetivoMarca(rutaActual->nodoA, rutaActual);
+
+    if (validadorObjetivosCompletados(rutaActual) == 1) {
+
+        sem_wait(&mutex);
+
+        if (rutasEncontradasParaSolucion < 30 && yaExisteRutaConPasos(rutaActual->cantidadPasosR) == 0) {
+            rutasEncontradas[rutasEncontradasParaSolucion] = *rutaActual;
+            rutasEncontradasParaSolucion++;
+        }
+
+        if (rutaActual->cantidadPasosR < mejorCantidadPasos) {
+            mejorCantidadPasos = rutaActual->cantidadPasosR;
+        }
+
+            printf(".");
+            fflush(stdout); // esto se uso para corroborar que el prorama seguia funcionando y no se habia quedado pegado
+
+        sem_post(&mutex);
+        sem_post(&semaforo);
+
         return NULL;
     }
 
-    rutaActual->rutasNodo[rutaActual->cantidadPasosR] = rutaActual->nodoA; // guarda el nodo actual
-    objetivoMarca(rutaActual->nodoA, rutaActual); // si es objetivo marca el nodo
-
-    if (validadorObjetivosCompletados(rutaActual) == 1) { // si paso por todos los objetivos, sirve la ruta
-
-        sem_wait(&mutex); // entra a zona critica para guardar la ruta
-
-        if (rutasEncontradasParaSolucion < 30) {
-            rutasEncontradas[rutasEncontradasParaSolucion] = *rutaActual; // guarda una copia de la ruta
-            rutasEncontradasParaSolucion++; // aumenta el contador
-        }
-
-        sem_post(&mutex); // sale de zona critica
-        sem_post(&semaforo); // libera el permiso del semaforo porque el hilo termino
-
+    if (rutaActual->cantidadPasosR >= mejorCantidadPasos) {
+        sem_post(&semaforo);
         return NULL;
     }
 
-    for (i = 0; i < 30 && grafo[rutaActual->nodoA - 1][i] != -1; i++) { // recorre todos los vecinos del nodo actual
 
-        if (rutasEncontradasParaSolucion >= 100) {	// si llego al limite se corta
-            break;
-        }
+    for (i = 0; i < 30 && grafo[rutaActual->nodoA - 1][i] != -1; i++) {
 
-        repetido = 0; // sirve para saber si un nodo ya esta en la ruta
+
+        repetido = 0;
 
         for (k = 0; k <= rutaActual->cantidadPasosR; k++) {
             if (rutaActual->rutasNodo[k] == grafo[rutaActual->nodoA - 1][i]) {
-                repetido = 1; // si el nodo ya fue visitado, se marca repetido
+                repetido = 1;
             }
         }
 
-        if (rutaActual->cantidadPasosR < 29 && repetido == 0) { // si queda espacio y no se repitio, avanza
+        if (rutaActual->cantidadPasosR < mejorCantidadPasos && repetido == 0) {
 
-            ruta *rutaNueva = malloc(sizeof(ruta)); // se crea nueva ruta para el nuevo hilo
+            ruta *rutaNueva = malloc(sizeof(ruta));
 
             if (rutaNueva != NULL) {
-                *rutaNueva = *rutaActual; se copia la ruta actual para no modificar hilo padre 
+                *rutaNueva = *rutaActual;
 
-                rutaNueva->nodoA = grafo[rutaActual->nodoA - 1][i]; // nuevo nodo sera el vecino encontrado
-                rutaNueva->cantidadPasosR = rutaActual->cantidadPasosR + 1; // suma un paso
+                rutaNueva->nodoA = grafo[rutaActual->nodoA - 1][i];
+                rutaNueva->cantidadPasosR = rutaActual->cantidadPasosR + 1;
 
-                sem_wait(&semaforo); // espera el permiso para crear nuevo hilo
+                sem_wait(&semaforo);
 
                 pthread_t hiloNuevo;
                 pthread_create(&hiloNuevo, NULL, recorridoGrafo, rutaNueva); // aca se usa la recursividad con recorridoGrafo
-				
-				/*
-					no se usa detach porque queremos esperar el hilo
-					pthread_join deja el padre esperando hasta que hijo termine
-				*/
+
                 pthread_join(hiloNuevo, NULL);
             }
         }
     }
 
-    sem_post(&semaforo); // libera el grafo cuando el hilo termina
+    sem_post(&semaforo);
     return NULL;
 }
 
@@ -271,27 +301,20 @@ int main()
     pthread_t hiloPrincipal; 
     int i, j;
 
-    lee_grafo(); // se lee el grafo desde archivo
+    lee_grafo();	
 
-
-    for (i = 0; i < 100; i++){
-        rutasEncontradas[i].cantidadPasosR = -1; // se inicia en -1 para avisar que no hay ruta guardada 
+    for (i = 0; i < 30; i++){
+        rutasEncontradas[i].cantidadPasosR = -1;
     }
 
     sem_init(&semaforo, 0, 40); // inicializacion del semaforo
     sem_init(&mutex, 0, 1); // inicializacion del mutex
-	
-	/*
-		no ocupamos detach, usamos join porque el main y los hilos padres esperan a que sus hilos hijos terminen
-		nuestros semaforos controlan permisos solamente, no liberan hilos
-	*/
 
-	
     ruta *rutaInicial;
-    rutaInicial = malloc(sizeof(ruta)); // reserva memoria para primera ruta
+    rutaInicial = malloc(sizeof(ruta));
 
-    rutaInicial->nodoA = nodoinicial; // comienza con el nodo inicial
-    rutaInicial->cantidadPasosR = 0; // comienza con 0 pasos
+    rutaInicial->nodoA = nodoinicial;
+    rutaInicial->cantidadPasosR = 0;
 
     for (i = 0; i < 5; i++){
         rutaInicial->visitado[i] = 0; // se inicializa el arreglo de visitados en 0, es decir, no se ha visitado ningun nodo objetivo
@@ -305,11 +328,11 @@ int main()
 
 
 
-    imprime_grafo(); // imprime el grafo
+    imprime_grafo();
 
-    imprimirTodasLasRutas(); // imprime todas las rutas
+    imprimirTodasLasRutas();
 
-    imprimirMejorRuta(); // imprime la mejor ruta 
+    imprimirMejorRuta();
 
     return 0;
 }

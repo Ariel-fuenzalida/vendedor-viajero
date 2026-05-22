@@ -126,18 +126,6 @@ void imprimirMejorRuta()
 }
 
 
-int validarCamino (ruta *lista, int nodoLlegar){ // validar que el nodo se conecte con el siguiente 
-    int fila = lista->nodoA - 1;
-    int i = 0;
-
-    for ( i=0; grafo[fila][i] != -1; i++){
-        if (grafo[fila][i] == nodoLlegar){
-            return 1;
-        }
-    }
-    return 0;
-}
-
 int validadorObjetivosCompletados(ruta *lista){ // validar que el nodo a llegar sea un nodo objetivo
     int i = 0;
     for (i = 0; i < 5; i++){

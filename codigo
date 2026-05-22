@@ -14,10 +14,10 @@ typedef struct {
 
 ruta rutasEncontradas[30]; // arreglo donde se guardaran las rutas encontradas para la solucion
 int rutasEncontradasParaSolucion = 0; // contador para rutas que se han encontrado 
-int grafo [30][30];
-int nodosarecorrer[5];
-int nodoinicial;
-int mejorCantidadPasos = 30;
+int grafo [30][30]; // matriz: cada fila guarda los nodos conectados
+int nodosarecorrer[5]; // nodos obligatorios 
+int nodoinicial; // nodo inicial, donde comienza la ruta
+int mejorCantidadPasos = 30; // mejor cantidad de pasos encontrada hasta el momento
 sem_t semaforo; // semaforo para controlar el acceso a la ruta optima
 sem_t mutex; // para controlar el acceso a las rutas 
 
@@ -31,6 +31,7 @@ void lee_grafo()
   int i=0,j,k;
 
 
+  // Lee el archivo donde esta el nodo inicial, los nodos objetivo y las conexiones.
   arch = fopen("grafo.csv","r");
   while ( fgets(linea,160,arch) != NULL)
   {
@@ -91,6 +92,9 @@ void imprime_grafo()
 
 int validarObjetivo(int nodoActual){// si es 1 es valido y si es 0 es invalido 
     int i =0;
+
+	// busca si el nodo actual es uno de los 5 obligatorios
+	// retorna la posicion del objetivo para marcarlo como visitado
     for (i=0; i<5; i++){
         if (nodoActual == nodosarecorrer[i]){
             return i;
@@ -116,6 +120,8 @@ int validarCamino (ruta *lista, int nodoLlegar){ // validar que el nodo se conec
     int fila = lista->nodoA - 1;
     int i = 0;
 
+	/* Revisa las conexiones del nodo actual para comprobar si se puede llegar
+   		directamente al nodo indicado. */
     for ( i=0; grafo[fila][i] != -1; i++){
         if (grafo[fila][i] == nodoLlegar){
             return 1;
@@ -126,6 +132,7 @@ int validarCamino (ruta *lista, int nodoLlegar){ // validar que el nodo se conec
 
 int validadorObjetivosCompletados(ruta *lista){ // validar que el nodo a llegar sea un nodo objetivo
     int i = 0;
+	// si algun objetivo sigue en 0, la ruta todavia es correcta
     for (i = 0; i < 5; i++){
         if (0 == lista->visitado[i]){
             return 0; // si uno es 0, es que aun quedan objetivos que visitar
@@ -140,6 +147,8 @@ int yaExisteRutaConPasos(int pasos)
 {
     int i;
 
+	// evita guardar rutas con los mismos pasos
+	// reduce la cantidad de soluciones
     for (i = 0; i < rutasEncontradasParaSolucion; i++) {
         if (rutasEncontradas[i].cantidadPasosR == pasos) {
             return 1;
@@ -153,6 +162,7 @@ void imprimirRuta(ruta *r)
 {
     int i;
 
+	//imprime la secuencia de nodos guardada
     for (i = 0; i <= r->cantidadPasosR; i++)
     {
         if (i > 0)
@@ -174,6 +184,7 @@ void imprimirTodasLasRutas()
 
     printf("\n----- RUTAS ENCONTRADAS -----\n");
 
+	// recorre el arreglo e imprime las soluciones encontradas
     for (i = 0; i < rutasEncontradasParaSolucion; i++)
     {
         printf("\nRuta %d: ", i + 1);
@@ -187,7 +198,7 @@ void imprimirMejorRuta()
     int i;
     int laMejor = 0;
 
-
+	// busca la que tenga menos pasos en rutas encontradas
     for (i = 1; i < rutasEncontradasParaSolucion; i++) {
         if (rutasEncontradas[i].cantidadPasosR < rutasEncontradas[laMejor].cantidadPasosR) {
             laMejor = i;
@@ -218,12 +229,16 @@ void *recorridoGrafo(void *arreglo)
     int repetido;
 
 
-
+	// guarda el nodo actual dentro del camino recorrido
     rutaActual->rutasNodo[rutaActual->cantidadPasosR] = rutaActual->nodoA;
+
+	// si el nodo actual es un objetivo, se marca visitado
     objetivoMarca(rutaActual->nodoA, rutaActual);
 
+	// si se visitaron los 5 obligatorios, es solucion
     if (validadorObjetivosCompletados(rutaActual) == 1) {
 
+		// solo puede entrar un hilo a la vez para no mezclar datos al guardar ruta
         sem_wait(&mutex);
 
         if (rutasEncontradasParaSolucion < 30 && yaExisteRutaConPasos(rutaActual->cantidadPasosR) == 0) {
@@ -231,6 +246,7 @@ void *recorridoGrafo(void *arreglo)
             rutasEncontradasParaSolucion++;
         }
 
+		// si esta ruta tiene menos pasos que la mejor conocida, actualiza la mejor
         if (rutaActual->cantidadPasosR < mejorCantidadPasos) {
             mejorCantidadPasos = rutaActual->cantidadPasosR;
         }
@@ -238,29 +254,34 @@ void *recorridoGrafo(void *arreglo)
             printf(".");
             fflush(stdout); // esto se uso para corroborar que el prorama seguia funcionando y no se habia quedado pegado
 
+		// se libera la zona critica para que otros hilos puedan guardar resultados
         sem_post(&mutex);
+
+		// libera un cupo del senaforo para que otro hilo continue
         sem_post(&semaforo);
 
         return NULL;
     }
-
-    if (rutaActual->cantidadPasosR >= mejorCantidadPasos) {
+	// si esta ruta tiene los mismos pasos o mas que la mejor solucion, no sigue explorandola
+	if (rutaActual->cantidadPasosR >= mejorCantidadPasos) {
         sem_post(&semaforo);
         return NULL;
     }
 
-
+	// recorre todos los vecinos, la fila termina cuando aparece -1
     for (i = 0; i < 30 && grafo[rutaActual->nodoA - 1][i] != -1; i++) {
 
 
         repetido = 0;
 
-        for (k = 0; k <= rutaActual->cantidadPasosR; k++) {
+		// verifica que el siguiente nodo no a sido usado antes en la ruta 
+		for (k = 0; k <= rutaActual->cantidadPasosR; k++) {
             if (rutaActual->rutasNodo[k] == grafo[rutaActual->nodoA - 1][i]) {
                 repetido = 1;
             }
         }
 
+		// crea nueva rama solo si es mejor solucion y nodo siguiente no esta repetido
         if (rutaActual->cantidadPasosR < mejorCantidadPasos && repetido == 0) {
 
             ruta *rutaNueva = malloc(sizeof(ruta));
@@ -268,19 +289,22 @@ void *recorridoGrafo(void *arreglo)
             if (rutaNueva != NULL) {
                 *rutaNueva = *rutaActual;
 
+				// la nueva rama avanza hacia el nodo conectado y aumenta un paso
                 rutaNueva->nodoA = grafo[rutaActual->nodoA - 1][i];
                 rutaNueva->cantidadPasosR = rutaActual->cantidadPasosR + 1;
 
+				// limita cuantas ramas/hilos se pueden crear o ejecutar, si no hay cupo espera a que se libere uno
                 sem_wait(&semaforo);
 
                 pthread_t hiloNuevo;
                 pthread_create(&hiloNuevo, NULL, recorridoGrafo, rutaNueva); // aca se usa la recursividad con recorridoGrafo
 
+				// espera el termino de hilo hijo para seguir con otro vecino
                 pthread_join(hiloNuevo, NULL);
             }
         }
     }
-
+	// al terminar libera un cupo del semaforo
     sem_post(&semaforo);
     return NULL;
 }
@@ -301,8 +325,10 @@ int main()
     pthread_t hiloPrincipal; 
     int i, j;
 
+	// carga el nodo inicial,objetivos y las conexiones del grafo
     lee_grafo();	
 
+	// inicia el arreglo de soluciones
     for (i = 0; i < 30; i++){
         rutasEncontradas[i].cantidadPasosR = -1;
     }
@@ -313,6 +339,7 @@ int main()
     ruta *rutaInicial;
     rutaInicial = malloc(sizeof(ruta));
 
+	// parte la primera ruta con 0 pasos y en nodo inicial
     rutaInicial->nodoA = nodoinicial;
     rutaInicial->cantidadPasosR = 0;
 

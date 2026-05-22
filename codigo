@@ -245,7 +245,7 @@ void *recorridoGrafo(void *arreglo)
 				/*
 					no se usa detach porque queremos esperar el hilo
 					pthread_join deja el padre esperando hasta que hijo termine
-				
+				*/
                 pthread_join(hiloNuevo, NULL);
             }
         }

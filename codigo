@@ -132,7 +132,7 @@ int validarCamino (ruta *lista, int nodoLlegar){ // validar que el nodo se conec
 
 int validadorObjetivosCompletados(ruta *lista){ // validar que el nodo a llegar sea un nodo objetivo
     int i = 0;
-	// si algun objetivo sigue en 0, la ruta todavia es correcta
+	// si algun objetivo sigue en 0, la ruta todavia no se completa
     for (i = 0; i < 5; i++){
         if (0 == lista->visitado[i]){
             return 0; // si uno es 0, es que aun quedan objetivos que visitar
@@ -281,7 +281,7 @@ void *recorridoGrafo(void *arreglo)
             }
         }
 
-		// crea nueva rama solo si es mejor solucion y nodo siguiente no esta repetido
+		// crea nueva rama solo si aun puede ser mejor ruta y nodo siguiente no esta repetido
         if (rutaActual->cantidadPasosR < mejorCantidadPasos && repetido == 0) {
 
             ruta *rutaNueva = malloc(sizeof(ruta));
@@ -293,7 +293,7 @@ void *recorridoGrafo(void *arreglo)
                 rutaNueva->nodoA = grafo[rutaActual->nodoA - 1][i];
                 rutaNueva->cantidadPasosR = rutaActual->cantidadPasosR + 1;
 
-				// limita cuantas ramas/hilos se pueden crear o ejecutar, si no hay cupo espera a que se libere uno
+				// limita cuantos hilos estan activos y si no hay cupo espera a que se libere uno
                 sem_wait(&semaforo);
 
                 pthread_t hiloNuevo;
@@ -347,7 +347,7 @@ int main()
         rutaInicial->visitado[i] = 0; // se inicializa el arreglo de visitados en 0, es decir, no se ha visitado ningun nodo objetivo
     }
 
-    sem_wait(&semaforo); // se espera a que el semaforo este disponible para guardar la ruta optima
+    sem_wait(&semaforo); // usa un cupo para iniciar el primer recorrido
 
     pthread_create(&hiloPrincipal, NULL, recorridoGrafo, rutaInicial);; // se crea el hilo inicial con la ruta inicial
 

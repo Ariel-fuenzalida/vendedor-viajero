@@ -190,7 +190,7 @@ void *recorridoGrafo(void *arreglo)
     int repetido;
 
 
-    if (rutasEncontradasParaSolucion >= 30) { // si se encuentran 30 rutas, no busca mas
+    if (rutasEncontradasParaSolucion >= 100) { // si se encuentran 100 rutas, no busca mas
         sem_post(&semaforo); // libera permiso antes de terminar el hilo
         return NULL;
     }
@@ -215,7 +215,7 @@ void *recorridoGrafo(void *arreglo)
 
     for (i = 0; i < 30 && grafo[rutaActual->nodoA - 1][i] != -1; i++) { // recorre todos los vecinos del nodo actual
 
-        if (rutasEncontradasParaSolucion >= 30) {	// si llego al limite se corta
+        if (rutasEncontradasParaSolucion >= 100) {	// si llego al limite se corta
             break;
         }
 
@@ -274,7 +274,7 @@ int main()
     lee_grafo(); // se lee el grafo desde archivo
 
 
-    for (i = 0; i < 30; i++){
+    for (i = 0; i < 100; i++){
         rutasEncontradas[i].cantidadPasosR = -1; // se inicia en -1 para avisar que no hay ruta guardada 
     }
 
